@@ -14,11 +14,11 @@ namespace Watermark.Services
 
         private readonly ILogger<RabbitMQClientService> _logger;
 
-        public RabbitMQClientService(ConnectionFactory connectionFactory, ILogger<RabbitMQClientService> logger, IModel channel)
+        public RabbitMQClientService(ConnectionFactory connectionFactory, ILogger<RabbitMQClientService> logger)
         {
             _connectionFactory = connectionFactory;
             _logger = logger;
-            _channel = channel;
+
         }
 
         public IModel Connect()
