@@ -6,16 +6,21 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Rendering;
 using Microsoft.EntityFrameworkCore;
 using Watermark.Models;
+using Watermark.Services;
+using System.IO;
+using Microsoft.AspNetCore.Http;
 
 namespace Watermark.Controllers
 {
     public class ProductsController : Controller
     {
         private readonly AppDbContext _context;
+        private readonly RabbitMQPublisher _rabbitMQPublisher;
 
-        public ProductsController(AppDbContext context)
+        public ProductsController(AppDbContext context, RabbitMQPublisher rabbitMQPublisher)
         {
             _context = context;
+            _rabbitMQPublisher = rabbitMQPublisher;
         }
 
         // GET: Products
@@ -55,15 +60,28 @@ namespace Watermark.Controllers
         // For more details, see http://go.microsoft.com/fwlink/?LinkId=317598.
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> Create([Bind("Id,Name,Price,Stock,PitcureUrl")] Product product)
+        public async Task<IActionResult> Create(Product product, IFormFile ImageFile)
         {
-            if (ModelState.IsValid)
+            if (!ModelState.IsValid)
+            { return View(product); }
+
+            if (ImageFile is { Length:>0})
             {
+                var randomImage = Guid.NewGuid() + Path.GetExtension(ImageFile.FileName);
+                var path = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot/images", randomImage);
+
+                await using FileStream stream = new(path, FileMode.Create);
+                await ImageFile.CopyToAsync(stream);
+
+                _rabbitMQPublisher.Publish(new ProductImageCreatedEvent() { ImageName = randomImage });
+                product.PitcureUrl = randomImage;
+
+            }
+
                 _context.Add(product);
                 await _context.SaveChangesAsync();
                 return RedirectToAction(nameof(Index));
-            }
-            return View(product);
+
         }
 
         // GET: Products/Edit/5
